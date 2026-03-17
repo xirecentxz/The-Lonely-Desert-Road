@@ -34,7 +34,7 @@
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xe8b923);
-        scene.fog = new THREE.Fog(0xe8b923, 5, 50);
+        scene.fog = new THREE.Fog(0xe8b923, 5, 60);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -46,16 +46,18 @@
         sun.position.set(5, 10, 7);
         scene.add(sun);
 
-        // Aspal Jalan
-        const roadGeo = new THREE.BoxGeometry(12, 0.1, 10000);
-        const roadMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
-        const road = new THREE.Mesh(roadGeo, roadMat);
+        // Aspal Jalan (Sangat Panjang)
+        const road = new THREE.Mesh(
+            new THREE.BoxGeometry(12, 0.1, 20000),
+            new THREE.MeshStandardMaterial({ color: 0x333333 })
+        );
         scene.add(road);
 
         // Tanah Gurun
-        const groundGeo = new THREE.PlaneGeometry(1000, 10000);
-        const groundMat = new THREE.MeshStandardMaterial({ color: 0xd2b48c });
-        const ground = new THREE.Mesh(groundGeo, groundMat);
+        const ground = new THREE.Mesh(
+            new THREE.PlaneGeometry(1000, 20000),
+            new THREE.MeshStandardMaterial({ color: 0xd2b48c })
+        );
         ground.rotation.x = -Math.PI / 2;
         ground.position.y = -0.1;
         scene.add(ground);
@@ -63,31 +65,33 @@
         const loader = new GLTFLoader();
         let truck = null;
         let moveState = 0; 
-        let driftPower = (Math.random() - 0.5) * 0.03;
+        let driftPower = (Math.random() - 0.5) * 0.04; // Kekuatan oleng otomatis
 
         loader.load('./assets/Truckk.glb', (gltf) => {
             truck = gltf.scene;
             truck.scale.set(0.8, 0.8, 0.8);
             
-            // COBA ROTASI INI: Menghadap ke arah sumbu Z negatif
-            truck.rotation.y = -Math.PI / 2; 
+            // Berdasarkan screenshot terakhir, rotasi 0 atau Math.PI biasanya pas
+            truck.rotation.y = 0; 
             
             scene.add(truck);
         });
 
-        // Event listener untuk HP dan Mouse
-        const startLeft = () => moveState = -1;
-        const startRight = () => moveState = 1;
-        const stopMove = () => moveState = 0;
+        // Kontrol Input
+        const startLeft = (e) => { e.preventDefault(); moveState = -1; };
+        const startRight = (e) => { e.preventDefault(); moveState = 1; };
+        const stopMove = (e) => { e.preventDefault(); moveState = 0; };
 
-        document.getElementById('leftBtn').addEventListener('touchstart', startLeft);
-        document.getElementById('rightBtn').addEventListener('touchstart', startRight);
-        document.getElementById('leftBtn').addEventListener('touchend', stopMove);
-        document.getElementById('rightBtn').addEventListener('touchend', stopMove);
+        const lBtn = document.getElementById('leftBtn');
+        const rBtn = document.getElementById('rightBtn');
+
+        lBtn.addEventListener('touchstart', startLeft);
+        rBtn.addEventListener('touchstart', startRight);
+        lBtn.addEventListener('touchend', stopMove);
+        rBtn.addEventListener('touchend', stopMove);
         
-        // Mouse support untuk testing di PC
-        document.getElementById('leftBtn').addEventListener('mousedown', startLeft);
-        document.getElementById('rightBtn').addEventListener('mousedown', startRight);
+        lBtn.addEventListener('mousedown', startLeft);
+        rBtn.addEventListener('mousedown', startRight);
         window.addEventListener('mouseup', stopMove);
 
         let startTime = Date.now();
@@ -97,27 +101,32 @@
             requestAnimationFrame(animate);
 
             if (truck) {
-                // Maju otomatis
-                truck.position.z -= 0.15;
+                // Maju otomatis (Sumbu Z Negatif)
+                truck.position.z -= 0.18;
 
-                // Oleng otomatis (The Torture Mechanic)
+                // Mekanik Siksaan: Oleng otomatis secara acak
                 truck.position.x += driftPower;
-                if(Math.random() > 0.99) driftPower = (Math.random() - 0.5) * 0.04;
+                if(Math.random() > 0.98) driftPower = (Math.random() - 0.5) * 0.05;
 
-                // Kontrol pemain
-                if(moveState === -1) truck.position.x -= 0.1;
-                if(moveState === 1) truck.position.x += 0.1;
+                // Kontrol Manual Pemain
+                if(moveState === -1) truck.position.x -= 0.12;
+                if(moveState === 1) truck.position.x += 0.12;
 
-                // Batas jalan
+                // Deteksi Kalah (Keluar dari aspal)
                 if(Math.abs(truck.position.x) > 6) {
-                    alert("Keluar Jalur! Kamu bertahan " + timerElement.innerText + " detik.");
+                    alert("Truk Terperosok! Kamu bertahan: " + timerElement.innerText + " detik.");
                     truck.position.x = 0;
+                    driftPower = (Math.random() - 0.5) * 0.04;
                     startTime = Date.now();
                 }
 
-                // Kamera mengikuti dari belakang
-                camera.position.set(truck.position.x, 3.5, truck.position.z + 10);
-                camera.lookAt(truck.position.x, 1.5, truck.position.z - 10);
+                // KAMERA: Kunci tepat di belakang truk
+                camera.position.x = truck.position.x;
+                camera.position.y = 4;
+                camera.position.z = truck.position.z + 12; // Jarak kamera di belakang
+                
+                // Kamera selalu melihat ke arah depan jalan
+                camera.lookAt(truck.position.x, 2, truck.position.z - 10);
 
                 timerElement.innerText = Math.floor((Date.now() - startTime) / 1000);
             }
