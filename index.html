@@ -46,16 +46,16 @@
         sun.position.set(5, 10, 5);
         scene.add(sun);
 
-        // Aspal Jalan
+        // Aspal Jalan (Lebar 15)
         const road = new THREE.Mesh(
-            new THREE.BoxGeometry(15, 0.1, 30000),
+            new THREE.BoxGeometry(15, 0.1, 40000),
             new THREE.MeshStandardMaterial({ color: 0x333333 })
         );
         scene.add(road);
 
         // Tanah Gurun
         const ground = new THREE.Mesh(
-            new THREE.PlaneGeometry(1000, 30000),
+            new THREE.PlaneGeometry(1000, 40000),
             new THREE.MeshStandardMaterial({ color: 0xd2b48c })
         );
         ground.rotation.x = -Math.PI / 2;
@@ -63,19 +63,24 @@
         scene.add(ground);
 
         const loader = new GLTFLoader();
-        let truck = null;
+        let truckContainer = null; // Ini adalah Wrapper Group
         let moveState = 0; 
         let driftPower = (Math.random() - 0.5) * 0.04;
 
         loader.load('./assets/Truckk.glb', (gltf) => {
-            truck = gltf.scene;
-            truck.scale.set(0.8, 0.8, 0.8);
-            
-            // ROTASI KUNCI: 
-            // Karena sebelumnya menghadap kanan, kita putar 90 derajat ke kiri (PI/2)
-            truck.rotation.y = Math.PI * 1.5; 
+            const truckModel = gltf.scene;
+            truckModel.scale.set(0.8, 0.8, 0.8);
+            truckModel.rotation.y = Math.PI * 1.5; 
 
-            scene.add(truck);
+            // --- SISTEM WRAPPER ---
+            // Kita geser visual modelnya saja ke kiri (-2.5) agar pas di tengah 'titik nol'
+            truckModel.position.x = -2.5; 
+
+            // Masukkan ke dalam Group Container
+            truckContainer = new THREE.Group();
+            truckContainer.add(truckModel);
+            scene.add(truckContainer);
+            // ----------------------
         });
 
         const startLeft = (e) => { e.preventDefault(); moveState = -1; };
@@ -97,31 +102,31 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            if (truck) {
-                // Truk maju lurus ke sumbu Z negatif
-                truck.position.z -= 0.2;
+            if (truckContainer) {
+                // Yang kita gerakkan adalah Container-nya, bukan model aslinya
+                truckContainer.position.z -= 0.2;
 
                 // Efek oleng
-                truck.position.x += driftPower;
+                truckContainer.position.x += driftPower;
                 if(Math.random() > 0.985) driftPower = (Math.random() - 0.5) * 0.05;
 
                 // Gerakan pemain
-                if(moveState === -1) truck.position.x -= 0.12;
-                if(moveState === 1) truck.position.x += 0.12;
+                if(moveState === -1) truckContainer.position.x -= 0.12;
+                if(moveState === 1) truckContainer.position.x += 0.12;
 
-                // Reset jika keluar jalur
-                if(Math.abs(truck.position.x) > 7.5) {
+                // Reset jika keluar jalur (Batas 7.5 karena lebar jalan 15)
+                if(Math.abs(truckContainer.position.x) > 7.5) {
                     alert("Game Over! Kamu bertahan " + timerElement.innerText + " detik.");
-                    truck.position.x = 0;
+                    truckContainer.position.x = 0;
                     startTime = Date.now();
                     driftPower = (Math.random() - 0.5) * 0.04;
                 }
 
-                // Kamera dikunci tepat di belakang truk
-                camera.position.x = truck.position.x;
+                // Kamera dikunci tepat di belakang Container
+                camera.position.x = truckContainer.position.x;
                 camera.position.y = 4.5;
-                camera.position.z = truck.position.z + 14;
-                camera.lookAt(truck.position.x, 2, truck.position.z - 10);
+                camera.position.z = truckContainer.position.z + 14;
+                camera.lookAt(truckContainer.position.x, 2, truckContainer.position.z - 10);
 
                 timerElement.innerText = Math.floor((Date.now() - startTime) / 1000);
             }
