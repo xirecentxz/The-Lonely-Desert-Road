@@ -7,7 +7,7 @@
     <style>
         body { margin: 0; overflow: hidden; background-color: #e8b923; touch-action: none; }
         #ui { position: absolute; top: 20px; width: 100%; text-align: center; color: white; font-family: 'Courier New', monospace; font-size: 20px; text-shadow: 2px 2px 5px #000; z-index: 10; pointer-events: none; }
-        .controls { position: absolute; bottom: 40px; width: 100%; display: flex; justify-content: space-around; z-index: 20; }
+        .controls { position: absolute; bottom: 40px; width: 100%; display: flex; justify-content: space-around; z-index: 20; width: 100%; }
         .btn { width: 80px; height: 80px; background: rgba(255,255,255,0.2); border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; -webkit-user-select: none; cursor: pointer; }
     </style>
 </head>
@@ -34,7 +34,7 @@
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xe8b923);
-        scene.fog = new THREE.Fog(0xe8b923, 5, 60);
+        scene.fog = new THREE.Fog(0xe8b923, 10, 80);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -42,56 +42,53 @@
         document.body.appendChild(renderer.domElement);
 
         scene.add(new THREE.AmbientLight(0xffffff, 1));
-        const sun = new THREE.DirectionalLight(0xffffff, 1);
-        sun.position.set(5, 10, 7);
+        const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+        sun.position.set(5, 10, 5);
         scene.add(sun);
 
-        // Aspal Jalan (Sangat Panjang)
+        // Aspal Jalan
         const road = new THREE.Mesh(
-            new THREE.BoxGeometry(12, 0.1, 20000),
+            new THREE.BoxGeometry(15, 0.1, 30000),
             new THREE.MeshStandardMaterial({ color: 0x333333 })
         );
         scene.add(road);
 
         // Tanah Gurun
         const ground = new THREE.Mesh(
-            new THREE.PlaneGeometry(1000, 20000),
+            new THREE.PlaneGeometry(1000, 30000),
             new THREE.MeshStandardMaterial({ color: 0xd2b48c })
         );
         ground.rotation.x = -Math.PI / 2;
-        ground.position.y = -0.1;
+        ground.position.y = -0.15;
         scene.add(ground);
 
         const loader = new GLTFLoader();
         let truck = null;
         let moveState = 0; 
-        let driftPower = (Math.random() - 0.5) * 0.04; // Kekuatan oleng otomatis
+        let driftPower = (Math.random() - 0.5) * 0.04;
 
         loader.load('./assets/Truckk.glb', (gltf) => {
             truck = gltf.scene;
             truck.scale.set(0.8, 0.8, 0.8);
             
-            // Berdasarkan screenshot terakhir, rotasi 0 atau Math.PI biasanya pas
-            truck.rotation.y = 0; 
-            
+            // ROTASI KUNCI: 
+            // Karena sebelumnya menghadap kanan, kita putar 90 derajat ke kiri (PI/2)
+            truck.rotation.y = Math.PI / 2; 
+
             scene.add(truck);
         });
 
-        // Kontrol Input
         const startLeft = (e) => { e.preventDefault(); moveState = -1; };
         const startRight = (e) => { e.preventDefault(); moveState = 1; };
         const stopMove = (e) => { e.preventDefault(); moveState = 0; };
 
-        const lBtn = document.getElementById('leftBtn');
-        const rBtn = document.getElementById('rightBtn');
-
-        lBtn.addEventListener('touchstart', startLeft);
-        rBtn.addEventListener('touchstart', startRight);
-        lBtn.addEventListener('touchend', stopMove);
-        rBtn.addEventListener('touchend', stopMove);
+        document.getElementById('leftBtn').addEventListener('touchstart', startLeft);
+        document.getElementById('rightBtn').addEventListener('touchstart', startRight);
+        document.getElementById('leftBtn').addEventListener('touchend', stopMove);
+        document.getElementById('rightBtn').addEventListener('touchend', stopMove);
         
-        lBtn.addEventListener('mousedown', startLeft);
-        rBtn.addEventListener('mousedown', startRight);
+        document.getElementById('leftBtn').addEventListener('mousedown', startLeft);
+        document.getElementById('rightBtn').addEventListener('mousedown', startRight);
         window.addEventListener('mouseup', stopMove);
 
         let startTime = Date.now();
@@ -101,31 +98,29 @@
             requestAnimationFrame(animate);
 
             if (truck) {
-                // Maju otomatis (Sumbu Z Negatif)
-                truck.position.z -= 0.18;
+                // Truk maju lurus ke sumbu Z negatif
+                truck.position.z -= 0.2;
 
-                // Mekanik Siksaan: Oleng otomatis secara acak
+                // Efek oleng
                 truck.position.x += driftPower;
-                if(Math.random() > 0.98) driftPower = (Math.random() - 0.5) * 0.05;
+                if(Math.random() > 0.985) driftPower = (Math.random() - 0.5) * 0.05;
 
-                // Kontrol Manual Pemain
+                // Gerakan pemain
                 if(moveState === -1) truck.position.x -= 0.12;
                 if(moveState === 1) truck.position.x += 0.12;
 
-                // Deteksi Kalah (Keluar dari aspal)
-                if(Math.abs(truck.position.x) > 6) {
-                    alert("Truk Terperosok! Kamu bertahan: " + timerElement.innerText + " detik.");
+                // Reset jika keluar jalur
+                if(Math.abs(truck.position.x) > 7.5) {
+                    alert("Game Over! Kamu bertahan " + timerElement.innerText + " detik.");
                     truck.position.x = 0;
-                    driftPower = (Math.random() - 0.5) * 0.04;
                     startTime = Date.now();
+                    driftPower = (Math.random() - 0.5) * 0.04;
                 }
 
-                // KAMERA: Kunci tepat di belakang truk
+                // Kamera dikunci tepat di belakang truk
                 camera.position.x = truck.position.x;
-                camera.position.y = 4;
-                camera.position.z = truck.position.z + 12; // Jarak kamera di belakang
-                
-                // Kamera selalu melihat ke arah depan jalan
+                camera.position.y = 4.5;
+                camera.position.z = truck.position.z + 14;
                 camera.lookAt(truck.position.x, 2, truck.position.z - 10);
 
                 timerElement.innerText = Math.floor((Date.now() - startTime) / 1000);
