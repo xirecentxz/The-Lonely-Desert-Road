@@ -2,15 +2,22 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>The Lonely Desert Road</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #edc9af; }
-        #ui { position: absolute; top: 20px; left: 20px; color: white; font-family: 'Courier New', Courier, monospace; font-size: 24px; text-shadow: 2px 2px 5px #000; z-index: 10; }
+        body { margin: 0; overflow: hidden; background-color: #edc9af; touch-action: none; }
+        #ui { position: absolute; top: 20px; width: 100%; text-align: center; color: white; font-family: 'Courier New', monospace; font-size: 20px; text-shadow: 2px 2px 5px #000; z-index: 10; pointer-events: none; }
+        .controls { position: absolute; bottom: 40px; width: 100%; display: flex; justify-content: space-around; z-index: 20; }
+        .btn { width: 80px; height: 80px; background: rgba(255,255,255,0.2); border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; -webkit-user-select: none; }
     </style>
 </head>
 <body>
     <div id="ui">WAKTU BERTAHAN: <span id="timer">0</span>s</div>
+    
+    <div class="controls">
+        <div class="btn" id="leftBtn">KIRI</div>
+        <div class="btn" id="rightBtn">KANAN</div>
+    </div>
 
     <script type="importmap">
         {
@@ -26,37 +33,44 @@
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xe8b923); // Warna langit gurun
-        scene.fog = new THREE.Fog(0xe8b923, 20, 100);
+        scene.background = new THREE.Color(0xe8b923);
+        scene.fog = new THREE.Fog(0xe8b923, 10, 80);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        // Lampu yang lebih terang
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-        scene.add(ambientLight);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
         const sun = new THREE.DirectionalLight(0xffffff, 1.2);
         sun.position.set(5, 10, 5);
         scene.add(sun);
 
-        // Lantai Pasir
-        const planeGeo = new THREE.BoxGeometry(100, 1, 5000); // Jalan panjang
-        const planeMat = new THREE.MeshStandardMaterial({ color: 0xc2a164 });
-        const ground = new THREE.Mesh(planeGeo, planeMat);
-        ground.position.y = -0.5; // Agar kaki truk pas di tanah
+        // Jalan yang sangat panjang
+        const ground = new THREE.Mesh(
+            new THREE.BoxGeometry(20, 1, 10000),
+            new THREE.MeshStandardMaterial({ color: 0x444444 }) // Warna aspal gelap
+        );
+        ground.position.y = -0.5;
         scene.add(ground);
 
         const loader = new GLTFLoader();
         let truck = null;
+        let moveState = 0; // -1: kiri, 1: kanan, 0: diam
+        let driftDir = (Math.random() - 0.5) * 0.02; // Logika Oleng
 
         loader.load('./assets/Truckk.glb', (gltf) => {
             truck = gltf.scene;
-            // Penyesuaian agar tidak terlalu besar/kecil
-            truck.scale.set(0.8, 0.8, 0.8); 
+            truck.scale.set(0.8, 0.8, 0.8);
+            truck.rotation.y = Math.PI; // Putar balik jika menghadap kamera
             scene.add(truck);
         });
+
+        // Kontrol Tombol HP
+        document.getElementById('leftBtn').ontouchstart = () => moveState = -1;
+        document.getElementById('rightBtn').ontouchstart = () => moveState = 1;
+        document.getElementById('leftBtn').ontouchend = () => moveState = 0;
+        document.getElementById('rightBtn').ontouchend = () => moveState = 0;
 
         let startTime = Date.now();
         const timerElement = document.getElementById('timer');
@@ -65,26 +79,33 @@
             requestAnimationFrame(animate);
 
             if (truck) {
-                truck.position.z -= 0.15; // Truk jalan maju
-                
-                // Kamera mengikuti dengan jarak ideal
-                camera.position.x = truck.position.x;
-                camera.position.y = truck.position.y + 4;
-                camera.position.z = truck.position.z + 12;
-                camera.lookAt(truck.position.x, truck.position.y + 2, truck.position.z);
+                // Maju otomatis
+                truck.position.z -= 0.2;
 
-                const elapsed = Math.floor((Date.now() - startTime) / 1000);
-                timerElement.innerText = elapsed;
+                // Logika Oleng Acak (Semakin lama semakin parah)
+                truck.position.x += driftDir;
+                if(Math.random() > 0.98) driftDir = (Math.random() - 0.5) * 0.05;
+
+                // Input Pemain
+                if(moveState === -1) truck.position.x -= 0.08;
+                if(moveState === 1) truck.position.x += 0.08;
+
+                // Cek Keluar Jalan (Gagal)
+                if(Math.abs(truck.position.x) > 8) {
+                    alert("Truk Terguling! Kamu bertahan: " + timerElement.innerText + " detik.");
+                    truck.position.x = 0;
+                    startTime = Date.now();
+                }
+
+                // Kamera di belakang (Bawah ke Atas)
+                camera.position.set(truck.position.x, 4, truck.position.z + 12);
+                camera.lookAt(truck.position.x, 2, truck.position.z - 5);
+
+                timerElement.innerText = Math.floor((Date.now() - startTime) / 1000);
             }
 
             renderer.render(scene, camera);
         }
-
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
 
         animate();
     </script>
