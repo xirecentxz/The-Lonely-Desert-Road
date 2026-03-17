@@ -5,18 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>The Lonely Desert Road</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #edc9af; touch-action: none; }
+        body { margin: 0; overflow: hidden; background-color: #e8b923; touch-action: none; }
         #ui { position: absolute; top: 20px; width: 100%; text-align: center; color: white; font-family: 'Courier New', monospace; font-size: 20px; text-shadow: 2px 2px 5px #000; z-index: 10; pointer-events: none; }
         .controls { position: absolute; bottom: 40px; width: 100%; display: flex; justify-content: space-around; z-index: 20; }
-        .btn { width: 80px; height: 80px; background: rgba(255,255,255,0.2); border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; -webkit-user-select: none; }
+        .btn { width: 80px; height: 80px; background: rgba(255,255,255,0.2); border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; -webkit-user-select: none; cursor: pointer; }
     </style>
 </head>
 <body>
     <div id="ui">WAKTU BERTAHAN: <span id="timer">0</span>s</div>
     
     <div class="controls">
-        <div class="btn" id="leftBtn">KIRI</div>
-        <div class="btn" id="rightBtn">KANAN</div>
+        <div id="leftBtn" class="btn">KIRI</div>
+        <div id="rightBtn" class="btn">KANAN</div>
     </div>
 
     <script type="importmap">
@@ -34,43 +34,61 @@
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xe8b923);
-        scene.fog = new THREE.Fog(0xe8b923, 10, 80);
+        scene.fog = new THREE.Fog(0xe8b923, 5, 50);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
-        const sun = new THREE.DirectionalLight(0xffffff, 1.2);
-        sun.position.set(5, 10, 5);
+        scene.add(new THREE.AmbientLight(0xffffff, 1));
+        const sun = new THREE.DirectionalLight(0xffffff, 1);
+        sun.position.set(5, 10, 7);
         scene.add(sun);
 
-        // Jalan yang sangat panjang
-        const ground = new THREE.Mesh(
-            new THREE.BoxGeometry(20, 1, 10000),
-            new THREE.MeshStandardMaterial({ color: 0x444444 }) // Warna aspal gelap
-        );
-        ground.position.y = -0.5;
+        // Aspal Jalan
+        const roadGeo = new THREE.BoxGeometry(12, 0.1, 10000);
+        const roadMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+        const road = new THREE.Mesh(roadGeo, roadMat);
+        scene.add(road);
+
+        // Tanah Gurun
+        const groundGeo = new THREE.PlaneGeometry(1000, 10000);
+        const groundMat = new THREE.MeshStandardMaterial({ color: 0xd2b48c });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.1;
         scene.add(ground);
 
         const loader = new GLTFLoader();
         let truck = null;
-        let moveState = 0; // -1: kiri, 1: kanan, 0: diam
-        let driftDir = (Math.random() - 0.5) * 0.02; // Logika Oleng
+        let moveState = 0; 
+        let driftPower = (Math.random() - 0.5) * 0.03;
 
         loader.load('./assets/Truckk.glb', (gltf) => {
             truck = gltf.scene;
             truck.scale.set(0.8, 0.8, 0.8);
-            truck.rotation.y = Math.PI; // Putar balik jika menghadap kamera
+            
+            // COBA ROTASI INI: Menghadap ke arah sumbu Z negatif
+            truck.rotation.y = -Math.PI / 2; 
+            
             scene.add(truck);
         });
 
-        // Kontrol Tombol HP
-        document.getElementById('leftBtn').ontouchstart = () => moveState = -1;
-        document.getElementById('rightBtn').ontouchstart = () => moveState = 1;
-        document.getElementById('leftBtn').ontouchend = () => moveState = 0;
-        document.getElementById('rightBtn').ontouchend = () => moveState = 0;
+        // Event listener untuk HP dan Mouse
+        const startLeft = () => moveState = -1;
+        const startRight = () => moveState = 1;
+        const stopMove = () => moveState = 0;
+
+        document.getElementById('leftBtn').addEventListener('touchstart', startLeft);
+        document.getElementById('rightBtn').addEventListener('touchstart', startRight);
+        document.getElementById('leftBtn').addEventListener('touchend', stopMove);
+        document.getElementById('rightBtn').addEventListener('touchend', stopMove);
+        
+        // Mouse support untuk testing di PC
+        document.getElementById('leftBtn').addEventListener('mousedown', startLeft);
+        document.getElementById('rightBtn').addEventListener('mousedown', startRight);
+        window.addEventListener('mouseup', stopMove);
 
         let startTime = Date.now();
         const timerElement = document.getElementById('timer');
@@ -80,32 +98,38 @@
 
             if (truck) {
                 // Maju otomatis
-                truck.position.z -= 0.2;
+                truck.position.z -= 0.15;
 
-                // Logika Oleng Acak (Semakin lama semakin parah)
-                truck.position.x += driftDir;
-                if(Math.random() > 0.98) driftDir = (Math.random() - 0.5) * 0.05;
+                // Oleng otomatis (The Torture Mechanic)
+                truck.position.x += driftPower;
+                if(Math.random() > 0.99) driftPower = (Math.random() - 0.5) * 0.04;
 
-                // Input Pemain
-                if(moveState === -1) truck.position.x -= 0.08;
-                if(moveState === 1) truck.position.x += 0.08;
+                // Kontrol pemain
+                if(moveState === -1) truck.position.x -= 0.1;
+                if(moveState === 1) truck.position.x += 0.1;
 
-                // Cek Keluar Jalan (Gagal)
-                if(Math.abs(truck.position.x) > 8) {
-                    alert("Truk Terguling! Kamu bertahan: " + timerElement.innerText + " detik.");
+                // Batas jalan
+                if(Math.abs(truck.position.x) > 6) {
+                    alert("Keluar Jalur! Kamu bertahan " + timerElement.innerText + " detik.");
                     truck.position.x = 0;
                     startTime = Date.now();
                 }
 
-                // Kamera di belakang (Bawah ke Atas)
-                camera.position.set(truck.position.x, 4, truck.position.z + 12);
-                camera.lookAt(truck.position.x, 2, truck.position.z - 5);
+                // Kamera mengikuti dari belakang
+                camera.position.set(truck.position.x, 3.5, truck.position.z + 10);
+                camera.lookAt(truck.position.x, 1.5, truck.position.z - 10);
 
                 timerElement.innerText = Math.floor((Date.now() - startTime) / 1000);
             }
 
             renderer.render(scene, camera);
         }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
 
         animate();
     </script>
