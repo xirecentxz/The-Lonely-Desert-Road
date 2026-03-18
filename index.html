@@ -22,7 +22,6 @@
             color: white; font-weight: bold; font-family: sans-serif;
             transition: all 0.1s ease; user-select: none; -webkit-user-select: none;
         }
-        /* Efek saat diklik atau ditekan keyboard */
         .btn.active, .btn:active { 
             background: rgba(255,255,255,0.5); transform: scale(0.9); 
             box-shadow: 0 0 15px white; 
@@ -50,6 +49,10 @@
         import * as THREE from 'three';
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+        // --- KONFIGURASI UTAMA ---
+        const LEBAR_ASPAL = 15;
+        const OFFSET_TRUK = -3; // <--- EDIT DI SINI: Geser visual truk (Ganti ke -2.5, -3, atau -3.5 agar pas tengah)
+
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xe8b923);
         scene.fog = new THREE.Fog(0xe8b923, 15, 90);
@@ -67,7 +70,7 @@
 
         // Aspal
         const road = new THREE.Mesh(
-            new THREE.BoxGeometry(15, 0.1, 50000),
+            new THREE.BoxGeometry(LEBAR_ASPAL, 0.1, 50000),
             new THREE.MeshStandardMaterial({ color: 0x333333 })
         );
         scene.add(road);
@@ -92,14 +95,16 @@
             const truckModel = gltf.scene;
             truckModel.scale.set(0.8, 0.8, 0.8);
             truckModel.rotation.y = Math.PI * 1.5; 
-            truckModel.position.x = 3; 
+            
+            // Mengatur posisi visual di dalam container agar pas di tengah jalan
+            truckModel.position.x = OFFSET_TRUK; 
 
             truckContainer = new THREE.Group();
             truckContainer.add(truckModel);
             scene.add(truckContainer);
         });
 
-        // 2. Load Rintangan (Kaktus)
+        // 2. Load Rintangan
         const obstacleModels = [];
         const obsFiles = ['./assets/Cactus A.glb', './assets/Cactus Model.glb', './assets/Rock.glb'];
         
@@ -122,8 +127,12 @@
             const obs = obstacleModels[randIdx].clone();
             
             const side = Math.random() > 0.5 ? 1 : -1;
-            obs.position.set(side * (10 + Math.random() * 5), 0, zPos);
-            obs.scale.set(0.7, 0.7, 0.7);
+            // Kaktus ditaruh di luar aspal (X > 7.5 atau X < -7.5)
+            obs.position.set(side * (9 + Math.random() * 5), 0, zPos);
+            
+            // <--- EDIT DI SINI: Besar Kecil Kaktus/Batu (Ubah angka 0.7)
+            obs.scale.set(0.7, 0.7, 0.7); 
+            
             scene.add(obs);
             obstacles.push(obs);
         }
@@ -143,7 +152,6 @@
             }
         };
 
-        // Kontrol HP & Mouse
         lBtn.addEventListener('touchstart', (e) => { e.preventDefault(); updateInput(-1, true); });
         rBtn.addEventListener('touchstart', (e) => { e.preventDefault(); updateInput(1, true); });
         window.addEventListener('touchend', () => updateInput(0, false));
@@ -151,7 +159,6 @@
         rBtn.addEventListener('mousedown', () => updateInput(1, true));
         window.addEventListener('mouseup', () => updateInput(0, false));
 
-        // Kontrol PC (Keyboard)
         window.addEventListener('keydown', (e) => {
             if (e.key === "ArrowLeft") updateInput(-1, true);
             if (e.key === "ArrowRight") updateInput(1, true);
@@ -166,7 +173,7 @@
             requestAnimationFrame(animate);
 
             if (truckContainer) {
-                truckContainer.position.z -= 0.22; // Maju
+                truckContainer.position.z -= 0.22;
 
                 truckContainer.position.x += driftPower;
                 if(Math.random() > 0.985) driftPower = (Math.random() - 0.5) * 0.05;
@@ -174,9 +181,12 @@
                 if(moveState === -1) truckContainer.position.x -= 0.14;
                 if(moveState === 1) truckContainer.position.x += 0.14;
 
-                if(Math.abs(truckContainer.position.x) > 7.5) {
+                // --- LOGIKA GAME OVER SIMETRIS ---
+                // Karena lebar jalan 15, batas kiri/kanan adalah 7.5
+                // Kita pakai angka 7.2 agar ban terlihat pas menyentuh pasir sebelum kalah
+                if(Math.abs(truckContainer.position.x) > 7.2) { 
                     alert("Game Over! Bertahan: " + timerElement.innerText + " detik.");
-                    truckContainer.position.x = 0;
+                    truckContainer.position.x = 0; // Reset ke tengah aspal secara logika
                     startTime = Date.now();
                 }
 
