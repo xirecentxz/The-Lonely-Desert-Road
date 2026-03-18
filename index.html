@@ -6,9 +6,27 @@
     <title>The Lonely Desert Road</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #e8b923; touch-action: none; }
-        #ui { position: absolute; top: 20px; width: 100%; text-align: center; color: white; font-family: 'Courier New', monospace; font-size: 20px; text-shadow: 2px 2px 5px #000; z-index: 10; pointer-events: none; }
-        .controls { position: absolute; bottom: 40px; width: 100%; display: flex; justify-content: space-around; z-index: 20; width: 100%; }
-        .btn { width: 80px; height: 80px; background: rgba(255,255,255,0.2); border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; -webkit-user-select: none; cursor: pointer; }
+        #ui { 
+            position: absolute; top: 20px; width: 100%; text-align: center; 
+            color: white; font-family: 'Courier New', monospace; font-size: 22px; 
+            text-shadow: 2px 2px 5px #000; z-index: 10; pointer-events: none; 
+        }
+        .controls { 
+            position: absolute; bottom: 50px; width: 100%; 
+            display: flex; justify-content: space-around; z-index: 20; 
+        }
+        .btn { 
+            width: 85px; height: 85px; background: rgba(255,255,255,0.2); 
+            border: 3px solid white; border-radius: 50%; 
+            display: flex; align-items: center; justify-content: center; 
+            color: white; font-weight: bold; font-family: sans-serif;
+            transition: all 0.1s ease; user-select: none; -webkit-user-select: none;
+        }
+        /* Efek saat diklik atau ditekan keyboard */
+        .btn.active, .btn:active { 
+            background: rgba(255,255,255,0.5); transform: scale(0.9); 
+            box-shadow: 0 0 15px white; 
+        }
     </style>
 </head>
 <body>
@@ -34,11 +52,12 @@
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xe8b923);
-        scene.fog = new THREE.Fog(0xe8b923, 10, 80);
+        scene.fog = new THREE.Fog(0xe8b923, 15, 90);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
         document.body.appendChild(renderer.domElement);
 
         scene.add(new THREE.AmbientLight(0xffffff, 1));
@@ -46,16 +65,16 @@
         sun.position.set(5, 10, 5);
         scene.add(sun);
 
-        // Aspal Jalan (Lebar 15)
+        // Aspal
         const road = new THREE.Mesh(
-            new THREE.BoxGeometry(15, 0.1, 40000),
+            new THREE.BoxGeometry(15, 0.1, 50000),
             new THREE.MeshStandardMaterial({ color: 0x333333 })
         );
         scene.add(road);
 
-        // Tanah Gurun
+        // Tanah
         const ground = new THREE.Mesh(
-            new THREE.PlaneGeometry(1000, 40000),
+            new THREE.PlaneGeometry(1000, 50000),
             new THREE.MeshStandardMaterial({ color: 0xd2b48c })
         );
         ground.rotation.x = -Math.PI / 2;
@@ -63,39 +82,83 @@
         scene.add(ground);
 
         const loader = new GLTFLoader();
-        let truckContainer = null; // Ini adalah Wrapper Group
+        let truckContainer = null;
         let moveState = 0; 
         let driftPower = (Math.random() - 0.5) * 0.04;
+        const obstacles = [];
 
+        // 1. Load Truk
         loader.load('./assets/Truckk.glb', (gltf) => {
             const truckModel = gltf.scene;
             truckModel.scale.set(0.8, 0.8, 0.8);
             truckModel.rotation.y = Math.PI * 1.5; 
-
-            // --- SISTEM WRAPPER ---
-            // Kita geser visual modelnya saja ke kiri (-2.5) agar pas di tengah 'titik nol'
             truckModel.position.x = 3; 
 
-            // Masukkan ke dalam Group Container
             truckContainer = new THREE.Group();
             truckContainer.add(truckModel);
             scene.add(truckContainer);
-            // ----------------------
         });
 
-        const startLeft = (e) => { e.preventDefault(); moveState = -1; };
-        const startRight = (e) => { e.preventDefault(); moveState = 1; };
-        const stopMove = (e) => { e.preventDefault(); moveState = 0; };
-
-        document.getElementById('leftBtn').addEventListener('touchstart', startLeft);
-        document.getElementById('rightBtn').addEventListener('touchstart', startRight);
-        document.getElementById('leftBtn').addEventListener('touchend', stopMove);
-        document.getElementById('rightBtn').addEventListener('touchend', stopMove);
+        // 2. Load Rintangan (Kaktus)
+        const obstacleModels = [];
+        const obsFiles = ['./assets/Cactus A.glb', './assets/Cactus Model.glb', './assets/Rock.glb'];
         
-        document.getElementById('leftBtn').addEventListener('mousedown', startLeft);
-        document.getElementById('rightBtn').addEventListener('mousedown', startRight);
-        window.addEventListener('mouseup', stopMove);
+        obsFiles.forEach(file => {
+            loader.load(file, (gltf) => {
+                obstacleModels.push(gltf.scene);
+                if (obstacleModels.length === obsFiles.length) spawnInitialObstacles();
+            });
+        });
 
+        function spawnInitialObstacles() {
+            for (let i = 0; i < 40; i++) {
+                createObstacle(-i * 40 - 50);
+            }
+        }
+
+        function createObstacle(zPos) {
+            if (obstacleModels.length === 0) return;
+            const randIdx = Math.floor(Math.random() * obstacleModels.length);
+            const obs = obstacleModels[randIdx].clone();
+            
+            const side = Math.random() > 0.5 ? 1 : -1;
+            obs.position.set(side * (10 + Math.random() * 5), 0, zPos);
+            obs.scale.set(0.7, 0.7, 0.7);
+            scene.add(obs);
+            obstacles.push(obs);
+        }
+
+        // --- INPUT HANDLING ---
+        const lBtn = document.getElementById('leftBtn');
+        const rBtn = document.getElementById('rightBtn');
+
+        const updateInput = (dir, active) => {
+            moveState = dir;
+            if (active) {
+                if (dir === -1) lBtn.classList.add('active');
+                if (dir === 1) rBtn.classList.add('active');
+            } else {
+                lBtn.classList.remove('active');
+                rBtn.classList.remove('active');
+            }
+        };
+
+        // Kontrol HP & Mouse
+        lBtn.addEventListener('touchstart', (e) => { e.preventDefault(); updateInput(-1, true); });
+        rBtn.addEventListener('touchstart', (e) => { e.preventDefault(); updateInput(1, true); });
+        window.addEventListener('touchend', () => updateInput(0, false));
+        lBtn.addEventListener('mousedown', () => updateInput(-1, true));
+        rBtn.addEventListener('mousedown', () => updateInput(1, true));
+        window.addEventListener('mouseup', () => updateInput(0, false));
+
+        // Kontrol PC (Keyboard)
+        window.addEventListener('keydown', (e) => {
+            if (e.key === "ArrowLeft") updateInput(-1, true);
+            if (e.key === "ArrowRight") updateInput(1, true);
+        });
+        window.addEventListener('keyup', (e) => updateInput(0, false));
+
+        // --- GAME LOOP ---
         let startTime = Date.now();
         const timerElement = document.getElementById('timer');
 
@@ -103,26 +166,20 @@
             requestAnimationFrame(animate);
 
             if (truckContainer) {
-                // Yang kita gerakkan adalah Container-nya, bukan model aslinya
-                truckContainer.position.z -= 0.2;
+                truckContainer.position.z -= 0.22; // Maju
 
-                // Efek oleng
                 truckContainer.position.x += driftPower;
                 if(Math.random() > 0.985) driftPower = (Math.random() - 0.5) * 0.05;
 
-                // Gerakan pemain
-                if(moveState === -1) truckContainer.position.x -= 0.12;
-                if(moveState === 1) truckContainer.position.x += 0.12;
+                if(moveState === -1) truckContainer.position.x -= 0.14;
+                if(moveState === 1) truckContainer.position.x += 0.14;
 
-                // Reset jika keluar jalur (Batas 7.5 karena lebar jalan 15)
                 if(Math.abs(truckContainer.position.x) > 7.5) {
-                    alert("Game Over! Kamu bertahan " + timerElement.innerText + " detik.");
+                    alert("Game Over! Bertahan: " + timerElement.innerText + " detik.");
                     truckContainer.position.x = 0;
                     startTime = Date.now();
-                    driftPower = (Math.random() - 0.5) * 0.04;
                 }
 
-                // Kamera dikunci tepat di belakang Container
                 camera.position.x = truckContainer.position.x;
                 camera.position.y = 4.5;
                 camera.position.z = truckContainer.position.z + 14;
